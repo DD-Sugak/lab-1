@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Dict, List
 
 #Абстрактный класс
@@ -77,13 +78,13 @@ class Tutor(Person):
 
 class Course():
     def __init__(self, name: str, tutor: Tutor, subject: str, description: str,
-                 time: str, price: str, status: str):
+                 time: str, month_price: str, status: str):
         self.name = name
         self.tutor = tutor
         self.subject = subject
         self.description = description
         self.time = time
-        self.price = price
+        self.month_price = month_price
         self.status = status
         self.students = []
         self.lesson = []
@@ -103,14 +104,79 @@ class Schedule():
     def __init__(self, student: Student, tutor: Tutor):
         self.student = student
         self.tutor = tutor
-        self.lessons = []
+        self.lessons: List[Lesson] = []
 
-    def add_lesson(self, new_lesson: str):
-        self.lessons.append(new_lesson)
+    def add_lesson(self, lesson: 'Lesson'):
+        self.lessons.append(lesson)
+        print(f"Урок '{lesson.name}' добавлен в расписание")
 
-    def cancel_lesson(self, name_lesson):
-        self.lessons.remove(name_lesson)
+    def get_upcoming_lessons(self):
+        return sorted(self.lessons, key=lambda x: (x.date, x.start_time))
 
+    def cancel_lesson(self, lesson_name: str):
+        for lesson in self.lessons:
+            if lesson.name == lesson_name:
+                self.lessons.remove(lesson)
+                print(f"Урок '{lesson_name}' отменен")
+                return
+        print(f"Урок '{lesson_name}' не найден")
+
+    def get_upcoming_lessons(self):
+        return self.lessons
+
+    def get_lessons_by_date(self, date: str):
+        day_lessons = [lesson for lesson in self.lessons if lesson.date == date]
+        return sorted(day_lessons, key=lambda x: x.start_time)
+
+    def display_schedule(self):
+        person = self.student if self.student else self.tutor
+        role = "Студент" if self.student else "Репетитор"
+        print(f"Расписание {role}a {person.first_name}:")
+
+        lessons_by_date = {}
+        for lesson in self.get_upcoming_lessons():
+            if lesson.date not in lessons_by_date:
+                lessons_by_date[lesson.date] = []
+            lessons_by_date[lesson.date].append(lesson)
+
+        for date, day_lessons in lessons_by_date.items():
+            print(f"\n {date}:")
+            for lesson in day_lessons:
+                print(f"   {lesson.start_time}-{lesson.end_time}: {lesson.name}")
+
+class Lesson():
+    def __init__(self,name: str, description: str, course: Course,
+                 start_time: str, end_time: str, date: str):
+        self.name = name
+        self.description = description
+        self.course = course
+        self.start_time = start_time
+        self.end_time = end_time
+        self.date = date
+
+class Payment():
+    def __init__(self, student: Student, month: str, year: int):
+        self.student = student
+        self.month = month
+        self.year = year
+        self.courses: List[Course] = []
+        self.total_amount = 0.0
+        self.status = "pending"
+        self.payment_date = None
+
+    def add_course(price_str: str) -> float:
+        price = ''.join(c for c in price_str if c.isdigit() or c in ',.')
+        price = price.replace(',', '.')
+        return float(price)
+
+    def process_payment(self):
+        self.status = "paid"
+        self.payment_date = datetime.now()
+        print(f"Оплата за {self.month} {self.year}: {len(self.courses)} курсов на сумму {self.total_amount} руб.")
+
+    def get_payment_info(self):
+        course_names = [course.name for course in self.courses]
+        return f"Платеж за {self.month}: {', '.join(course_names)} - {self.total_amount} руб."
 
 
 
