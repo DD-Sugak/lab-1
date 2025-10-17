@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
+
 
 #Абстрактный класс
 class Person(ABC):
@@ -35,7 +36,8 @@ class Student(Person):
                  email: str, user_id: int, role: str, grade: int):
          super().__init__(first_name, last_name, age, phone, email, user_id, role)
          self.grade = grade
-         self.enrolled_courses: List[str] = []
+         self.enrolled_courses: List[Course] = []
+         self.schedule = Schedule(student=self)
 
     def display_info(self):
         print(f"Студент: {self.first_name} {self.last_name}")
@@ -48,8 +50,8 @@ class Student(Person):
     def get_course(self):
         return self.enrolled_courses
 
-    def view_the_schedule(self, schedule: 'Schedule'):
-        return schedule
+    def view_the_schedule(self):
+        self.schedule.display_schedule()
 
 class Tutor(Person):
     def __init__(self, first_name: str, last_name :str, age: int, phone: str,
@@ -58,7 +60,8 @@ class Tutor(Person):
          self.subject = subject
          self.experience = experience
          self.bio = bio
-         self.courses_taught: List[str] = []
+         self.courses_taught: List[Course] = []
+         self.schedule = Schedule(tutor=self)
 
     def display_info(self):
         print(f"Репетитор: {self.first_name} {self.last_name}")
@@ -73,8 +76,8 @@ class Tutor(Person):
         self.courses_taught.append(course)
         return course
 
-    def view_the_schedule(self, schedule: 'Schedule'):
-        return schedule
+    def view_the_schedule(self):
+        self.schedule.display_schedule()
 
 class Course():
     def __init__(self, name: str, tutor: Tutor, subject: str, description: str,
@@ -153,6 +156,10 @@ class Lesson():
         self.start_time = start_time
         self.end_time = end_time
         self.date = date
+        self.homeworks : List[Homework] = []
+
+    def add_homework(self, homework: 'Homework'):
+        self.homeworks.append(homework)
 
 class Payment():
     def __init__(self, student: Student, month: str, year: int):
@@ -164,10 +171,14 @@ class Payment():
         self.status = "pending"
         self.payment_date = None
 
-    def add_course(price_str: str) -> float:
-        price = ''.join(c for c in price_str if c.isdigit() or c in ',.')
-        price = price.replace(',', '.')
-        return float(price)
+    def add_course(self, course: Course):
+        self.courses.append(course)
+        self.total_amount += self._parse_price(course.month_price)
+
+    def _parse_price(self, price_str: str) -> float:
+        clean_price = ''.join(c for c in price_str if c.isdigit() or c in ',.')
+        clean_price = clean_price.replace(',', '.')
+        return float(clean_price)
 
     def process_payment(self):
         self.status = "paid"
@@ -178,5 +189,62 @@ class Payment():
         course_names = [course.name for course in self.courses]
         return f"Платеж за {self.month}: {', '.join(course_names)} - {self.total_amount} руб."
 
+class Homework():
+    def __init__(self, title: str, description: str, lesson: Lesson,
+                 deadline: str, max_score: int = 100):
+        self.title = title
+        self.description = description
+        self.lesson = lesson
+        self.deadline = deadline
+        self.max_score = max_score
+        self.attachments: List[str] = []
+        self.student_submissions: Dict[Student, 'HomeworkSubmission'] = {}
 
+class HomeworkSubmission():
+    def __init__(self, student: Student, homework: Homework,
+                 answer: str, submitted_date: str):
+        self.student = student
+        self.homework = homework
+        self.answer = answer
+        self.submitted_date = submitted_date
+        self.score: Optional[int] = None  # оценка
+        self.feedback: str = ""
+
+    def get_score_percentage(self) -> float:
+        if self.score is not None:
+            return (self.score / self.homework.max_score) * 100
+        return 0.0
+
+    def get_grade_letter(self) -> str:
+        percentage = self.get_score_percentage()
+        if percentage >= 90:
+            return "5"
+        elif percentage >= 70:
+            return "4"
+        elif percentage >= 50:
+            return "3"
+        else:
+            return "2"
+
+class Test():
+    def __init__(self, title: str, lesson: Lesson):
+        self.title = title
+        self.lesson = lesson
+        self.questions: List['Question'] = []
+
+    def add_question(self, question: 'Question'):
+        self.questions.append(question)
+
+    def calculate_score(self, user_answers: List[int]) -> int:
+        score = 0
+        for i, question in enumerate(self.questions):
+            if user_answers[i] == question.correct_answer:
+                score += 1
+        return score
+
+class Question:
+    def __init__(self, text: str, options: List[str], correct_answer: int):
+        self.text = text
+        self.options = options
+        self.correct_answer = correct_answer
 
