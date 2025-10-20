@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Dict, List, Optional
 import json
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
 
 class EducationException(Exception):
     ##Базовое исключение для системы образования
@@ -112,6 +114,30 @@ class Person(ABC):
             role=data["role"]
         )
 
+    def to_xml(self) -> 'ET.Element':
+        person_elem = ET.Element("person")
+        ET.SubElement(person_elem, "first_name").text = self.first_name
+        ET.SubElement(person_elem, "last_name").text = self.last_name
+        ET.SubElement(person_elem, "age").text = str(self.age)
+        ET.SubElement(person_elem, "phone").text = self.phone
+        ET.SubElement(person_elem, "email").text = self.email
+        ET.SubElement(person_elem, "user_id").text = str(self.user_id)
+        ET.SubElement(person_elem, "role").text = self.role
+        return person_elem
+
+    @classmethod
+    def from_xml(cls, person_elem: ET.Element) -> 'Person':
+        ##Создать человека из XML элемента
+        return cls(
+            first_name=person_elem.find("first_name").text,
+            last_name=person_elem.find("last_name").text,
+            age=int(person_elem.find("age").text),
+            phone=person_elem.find("phone").text,
+            email=person_elem.find("email").text,
+            user_id=int(person_elem.find("user_id").text),
+            role=person_elem.find("role").text
+        )
+
     def display_info(self):
         pass
 
@@ -172,6 +198,35 @@ class Student(Person):
         )
 
         # enrolled_courses мы восстановим позже, когда загрузим все курсы
+        return student
+
+    def to_xml(self) -> 'ET.Element':
+        student_elem = super().to_xml()
+        student_elem.tag = "student"  # меняем тег на student
+
+        ET.SubElement(student_elem, "grade").text = str(self.grade)
+
+        # Добавляем список курсов
+        courses_elem = ET.SubElement(student_elem, "enrolled_courses")
+        for course in self.enrolled_courses:
+            ET.SubElement(courses_elem, "course").text = course.name
+
+        return student_elem
+
+    @classmethod
+    def from_xml(cls, student_elem: ET.Element) -> 'Student':
+        ##Создать студента из XML элемента
+        student = cls(
+            first_name=student_elem.find("first_name").text,
+            last_name=student_elem.find("last_name").text,
+            age=int(student_elem.find("age").text),
+            phone=student_elem.find("phone").text,
+            email=student_elem.find("email").text,
+            user_id=int(student_elem.find("user_id").text),
+            grade=int(student_elem.find("grade").text)
+        )
+
+        # enrolled_courses восстановим позже
         return student
 
 
@@ -255,6 +310,40 @@ class Tutor(Person):
         # courses_taught восстановим позже
         return tutor
 
+    def to_xml(self) -> 'ET.Element':
+        tutor_elem = super().to_xml()
+        tutor_elem.tag = "tutor"  # меняем тег на tutor
+
+        ET.SubElement(tutor_elem, "subject").text = self.subject
+        ET.SubElement(tutor_elem, "experience").text = str(self.experience)
+        ET.SubElement(tutor_elem, "bio").text = self.bio
+
+        # Добавляем список курсов
+        courses_elem = ET.SubElement(tutor_elem, "courses_taught")
+        for course in self.courses_taught:
+            ET.SubElement(courses_elem, "course").text = course.name
+
+        return tutor_elem
+
+    @classmethod
+    def from_xml(cls, tutor_elem: ET.Element) -> 'Tutor':
+        ##Создать репетитора из XML элемента
+        tutor = cls(
+            first_name=tutor_elem.find("first_name").text,
+            last_name=tutor_elem.find("last_name").text,
+            age=int(tutor_elem.find("age").text),
+            phone=tutor_elem.find("phone").text,
+            email=tutor_elem.find("email").text,
+            user_id=int(tutor_elem.find("user_id").text),
+            role="tutor",
+            subject=tutor_elem.find("subject").text,
+            experience=int(tutor_elem.find("experience").text),
+            bio=tutor_elem.find("bio").text
+        )
+
+        # courses_taught восстановим позже
+        return tutor
+
 
 class Course():
     def __init__(self, name: str, tutor: Tutor, subject: str, description: str,
@@ -305,7 +394,7 @@ class Course():
         if not isinstance(new_lesson, Lesson):
             raise LessonException("Можно добавлять только объекты Lesson")
 
-        if new_lesson in self.lessons:
+        if new_lesson in self.lesson:
             raise LessonException(f"Урок '{new_lesson.name}' уже есть в курсе")
 
         self.lesson.append(new_lesson)
@@ -343,6 +432,54 @@ class Course():
             month_price=data["month_price"],
             status=data["status"]
         )
+        return course
+
+    def to_xml(self) -> 'ET.Element':
+
+        course_elem = ET.Element("course")
+
+        ET.SubElement(course_elem, "name").text = self.name
+        ET.SubElement(course_elem, "tutor").text = f"{self.tutor.first_name} {self.tutor.last_name}"
+        ET.SubElement(course_elem, "subject").text = self.subject
+        ET.SubElement(course_elem, "description").text = self.description
+        ET.SubElement(course_elem, "time").text = self.time
+        ET.SubElement(course_elem, "month_price").text = self.month_price
+        ET.SubElement(course_elem, "status").text = self.status
+
+        # Добавляем студентов курса
+        students_elem = ET.SubElement(course_elem, "students")
+        for student in self.students:
+            ET.SubElement(students_elem, "student").text = f"{student.first_name} {student.last_name}"
+
+        # Добавляем уроки курса
+        lessons_elem = ET.SubElement(course_elem, "lessons")
+        for lesson in self.lesson:
+            lesson_elem = ET.SubElement(lessons_elem, "lesson")
+            ET.SubElement(lesson_elem, "name").text = lesson.name
+            ET.SubElement(lesson_elem, "date").text = lesson.date
+            ET.SubElement(lesson_elem, "time").text = f"{lesson.start_time}-{lesson.end_time}"
+
+        return course_elem
+
+    @classmethod
+    def from_xml(cls, course_elem: ET.Element, tutors: List[Tutor]) -> 'Course':
+        ##Создать курс из XML элемента
+        tutor_name = course_elem.find("tutor").text
+        tutor = next((t for t in tutors if f"{t.first_name} {t.last_name}" == tutor_name), None)
+
+        if not tutor:
+            raise EducationException(f"Репетитор {tutor_name} не найден при загрузке курса")
+
+        course = cls(
+            name=course_elem.find("name").text,
+            tutor=tutor,
+            subject=course_elem.find("subject").text,
+            description=course_elem.find("description").text,
+            time=course_elem.find("time").text,
+            month_price=course_elem.find("month_price").text,
+            status=course_elem.find("status").text
+        )
+
         return course
 
 
@@ -438,6 +575,58 @@ class Schedule():
 
         return schedule
 
+    def to_xml(self) -> 'ET.Element':
+        schedule_elem = ET.Element("schedule")
+
+        # Информация о владельце расписания
+        if self.student:
+            owner_elem = ET.SubElement(schedule_elem, "owner")
+            owner_elem.set("type", "student")
+            ET.SubElement(owner_elem, "name").text = f"{self.student.first_name} {self.student.last_name}"
+        elif self.tutor:
+            owner_elem = ET.SubElement(schedule_elem, "owner")
+            owner_elem.set("type", "tutor")
+            ET.SubElement(owner_elem, "name").text = f"{self.tutor.first_name} {self.tutor.last_name}"
+
+        # Добавляем уроки
+        lessons_elem = ET.SubElement(schedule_elem, "lessons")
+        for lesson in self.lessons:
+            lesson_elem = ET.SubElement(lessons_elem, "scheduled_lesson")
+            ET.SubElement(lesson_elem, "name").text = lesson.name
+            ET.SubElement(lesson_elem, "date").text = lesson.date
+            ET.SubElement(lesson_elem, "time").text = f"{lesson.start_time}-{lesson.end_time}"
+            ET.SubElement(lesson_elem, "course").text = lesson.course.name
+
+        return schedule_elem
+
+    @classmethod
+    def from_xml(cls, schedule_elem: ET.Element, students: List[Student], tutors: List[Tutor],
+                 lessons: List['Lesson']) -> 'Schedule':
+        owner_elem = schedule_elem.find("owner")
+        owner_type = owner_elem.get("type")
+        owner_name = owner_elem.find("name").text
+
+        if owner_type == "student":
+            owner = next((s for s in students if f"{s.first_name} {s.last_name}" == owner_name), None)
+            schedule = cls(student=owner)
+        else:
+            owner = next((t for t in tutors if f"{t.first_name} {t.last_name}" == owner_name), None)
+            schedule = cls(tutor=owner)
+
+        if not owner:
+            raise EducationException(f"Владелец расписания '{owner_name}' не найден")
+
+        # Восстанавливаем уроки
+        lessons_elem = schedule_elem.find("lessons")
+        if lessons_elem is not None:
+            for lesson_elem in lessons_elem.findall("scheduled_lesson"):
+                lesson_name = lesson_elem.find("name").text
+                lesson = next((l for l in lessons if l.name == lesson_name), None)
+                if lesson:
+                    schedule.add_lesson(lesson)
+
+        return schedule
+
 class Lesson():
     def __init__(self,name: str, description: str, course: Course,
                  start_time: str, end_time: str, date: str):
@@ -489,6 +678,45 @@ class Lesson():
             start_time=data["start_time"],
             end_time=data["end_time"],
             date=data["date"]
+        )
+
+        return lesson
+
+    def to_xml(self) -> 'ET.Element':
+        """Преобразовать урок в XML элемент"""
+        lesson_elem = ET.Element("lesson")
+
+        ET.SubElement(lesson_elem, "name").text = self.name
+        ET.SubElement(lesson_elem, "description").text = self.description
+        ET.SubElement(lesson_elem, "course").text = self.course.name
+        ET.SubElement(lesson_elem, "start_time").text = self.start_time
+        ET.SubElement(lesson_elem, "end_time").text = self.end_time
+        ET.SubElement(lesson_elem, "date").text = self.date
+
+        # Добавляем домашние задания
+        homeworks_elem = ET.SubElement(lesson_elem, "homeworks")
+        for homework in self.homeworks:
+            hw_elem = ET.SubElement(homeworks_elem, "homework")
+            ET.SubElement(hw_elem, "title").text = homework.title
+            ET.SubElement(hw_elem, "deadline").text = homework.deadline
+
+        return lesson_elem
+
+    @classmethod
+    def from_xml(cls, lesson_elem: ET.Element, courses: List[Course]) -> 'Lesson':
+        course_name = lesson_elem.find("course").text
+        course = next((c for c in courses if c.name == course_name), None)
+
+        if not course:
+            raise EducationException(f"Курс '{course_name}' не найден")
+
+        lesson = cls(
+            name=lesson_elem.find("name").text,
+            description=lesson_elem.find("description").text,
+            course=course,
+            start_time=lesson_elem.find("start_time").text,
+            end_time=lesson_elem.find("end_time").text,
+            date=lesson_elem.find("date").text
         )
 
         return lesson
@@ -605,6 +833,68 @@ class Payment():
 
         return payment
 
+    def to_xml(self) -> 'ET.Element':
+        payment_elem = ET.Element("payment")
+
+        # Основная информация
+        info_elem = ET.SubElement(payment_elem, "payment_info")
+        ET.SubElement(info_elem, "month").text = self.month
+        ET.SubElement(info_elem, "year").text = str(self.year)
+        ET.SubElement(info_elem, "total_amount").text = str(self.total_amount)
+        ET.SubElement(info_elem, "status").text = self.status
+        if self.payment_date:
+            ET.SubElement(info_elem, "payment_date").text = self.payment_date.isoformat()
+
+        # Информация о студенте
+        student_elem = ET.SubElement(payment_elem, "student")
+        ET.SubElement(student_elem, "name").text = f"{self.student.first_name} {self.student.last_name}"
+        ET.SubElement(student_elem, "id").text = str(self.student.user_id)
+
+        # Список курсов
+        courses_elem = ET.SubElement(payment_elem, "courses")
+        for course in self.courses:
+            course_elem = ET.SubElement(courses_elem, "course")
+            ET.SubElement(course_elem, "name").text = course.name
+            ET.SubElement(course_elem, "price").text = course.month_price
+
+        return payment_elem
+
+    @classmethod
+    def from_xml(cls, payment_elem: ET.Element, students: List[Student], courses: List[Course]) -> 'Payment':
+        ##Создать платеж из XML элемента
+        student_elem = payment_elem.find("student")
+        student_id = int(student_elem.find("id").text)
+        student = next((s for s in students if s.user_id == student_id), None)
+
+        if not student:
+            raise EducationException(f"Студент с ID {student_id} не найден")
+
+        payment_info = payment_elem.find("payment_info")
+        payment = cls(
+            student=student,
+            month=payment_info.find("month").text,
+            year=int(payment_info.find("year").text)
+        )
+
+        payment.status = payment_info.find("status").text
+        payment.total_amount = float(payment_info.find("total_amount").text)
+
+        # Восстанавливаем дату платежа
+        payment_date_elem = payment_info.find("payment_date")
+        if payment_date_elem is not None and payment_date_elem.text:
+            payment.payment_date = datetime.fromisoformat(payment_date_elem.text)
+
+        # Добавляем курсы к платежу
+        courses_elem = payment_elem.find("courses")
+        if courses_elem is not None:
+            for course_elem in courses_elem.findall("course"):
+                course_name = course_elem.find("name").text
+                course = next((c for c in courses if c.name == course_name), None)
+                if course:
+                    payment.add_course(course)
+
+        return payment
+
 class Homework():
     def __init__(self, title: str, description: str, lesson: Lesson,
                  deadline: str, max_score: int = 100):
@@ -655,6 +945,47 @@ class Homework():
 
         # Восстанавливаем вложения
         homework.attachments = data.get("attachments", [])
+
+        return homework
+
+    def to_xml(self) -> 'ET.Element':
+        """Преобразовать домашнее задание в XML элемент"""
+        homework_elem = ET.Element("homework")
+
+        ET.SubElement(homework_elem, "title").text = self.title
+        ET.SubElement(homework_elem, "description").text = self.description
+        ET.SubElement(homework_elem, "lesson").text = self.lesson.name
+        ET.SubElement(homework_elem, "deadline").text = self.deadline
+        ET.SubElement(homework_elem, "max_score").text = str(self.max_score)
+
+        # Добавляем вложения
+        attachments_elem = ET.SubElement(homework_elem, "attachments")
+        for attachment in self.attachments:
+            ET.SubElement(attachments_elem, "file").text = attachment
+
+        return homework_elem
+
+    @classmethod
+    def from_xml(cls, homework_elem: ET.Element, lessons: List[Lesson]) -> 'Homework':
+        lesson_name = homework_elem.find("lesson").text
+        lesson = next((l for l in lessons if l.name == lesson_name), None)
+
+        if not lesson:
+            raise EducationException(f"Урок '{lesson_name}' не найден")
+
+        homework = cls(
+            title=homework_elem.find("title").text,
+            description=homework_elem.find("description").text,
+            lesson=lesson,
+            deadline=homework_elem.find("deadline").text,
+            max_score=int(homework_elem.find("max_score").text)
+        )
+
+        # Восстанавливаем вложения
+        attachments_elem = homework_elem.find("attachments")
+        if attachments_elem is not None:
+            for file_elem in attachments_elem.findall("file"):
+                homework.attachments.append(file_elem.text)
 
         return homework
 
@@ -742,6 +1073,64 @@ class HomeworkSubmission():
 
         return submission
 
+    def to_xml(self) -> 'ET.Element':
+        """Преобразовать сданную работу в XML элемент"""
+        submission_elem = ET.Element("homework_submission")
+
+        # Информация о студенте
+        student_elem = ET.SubElement(submission_elem, "student")
+        ET.SubElement(student_elem, "name").text = f"{self.student.first_name} {self.student.last_name}"
+        ET.SubElement(student_elem, "id").text = str(self.student.user_id)
+
+        # Информация о задании
+        homework_elem = ET.SubElement(submission_elem, "homework")
+        ET.SubElement(homework_elem, "title").text = self.homework.title
+
+        ET.SubElement(submission_elem, "answer").text = self.answer
+        ET.SubElement(submission_elem, "submitted_date").text = self.submitted_date
+
+        if self.score is not None:
+            ET.SubElement(submission_elem, "score").text = str(self.score)
+            ET.SubElement(submission_elem, "score_percentage").text = str(self.get_score_percentage())
+            ET.SubElement(submission_elem, "grade_letter").text = self.get_grade_letter()
+
+        if self.feedback:
+            ET.SubElement(submission_elem, "feedback").text = self.feedback
+
+        return submission_elem
+
+    @classmethod
+    def from_xml(cls, submission_elem: ET.Element, students: List[Student],
+                 homeworks: List[Homework]) -> 'HomeworkSubmission':
+        student_elem = submission_elem.find("student")
+        student_name = student_elem.find("name").text
+        student = next((s for s in students if f"{s.first_name} {s.last_name}" == student_name), None)
+
+        homework_elem = submission_elem.find("homework")
+        homework_title = homework_elem.find("title").text
+        homework = next((h for h in homeworks if h.title == homework_title), None)
+
+        if not student or not homework:
+            raise EducationException("Студент или задание не найдены")
+
+        submission = cls(
+            student=student,
+            homework=homework,
+            answer=submission_elem.find("answer").text,
+            submitted_date=submission_elem.find("submitted_date").text
+        )
+
+        # Восстанавливаем оценку и комментарий
+        score_elem = submission_elem.find("score")
+        if score_elem is not None:
+            submission.score = int(score_elem.text)
+
+        feedback_elem = submission_elem.find("feedback")
+        if feedback_elem is not None:
+            submission.feedback = feedback_elem.text
+
+        return submission
+
 class Test():
     def __init__(self, title: str, lesson: Lesson):
 
@@ -791,6 +1180,42 @@ class Test():
 
         return test
 
+    def to_xml(self) -> 'ET.Element':
+        """Преобразовать тест в XML элемент"""
+        test_elem = ET.Element("test")
+
+        ET.SubElement(test_elem, "title").text = self.title
+        ET.SubElement(test_elem, "lesson").text = self.lesson.name
+
+        # Добавляем вопросы
+        questions_elem = ET.SubElement(test_elem, "questions")
+        for question in self.questions:
+            questions_elem.append(question.to_xml())
+
+        return test_elem
+
+    @classmethod
+    def from_xml(cls, test_elem: ET.Element, lessons: List[Lesson]) -> 'Test':
+        lesson_name = test_elem.find("lesson").text
+        lesson = next((l for l in lessons if l.name == lesson_name), None)
+
+        if not lesson:
+            raise EducationException(f"Урок '{lesson_name}' не найден")
+
+        test = cls(
+            title=test_elem.find("title").text,
+            lesson=lesson
+        )
+
+        # Загружаем вопросы
+        questions_elem = test_elem.find("questions")
+        if questions_elem is not None:
+            for question_elem in questions_elem.findall("question"):
+                question = Question.from_xml(question_elem)
+                test.add_question(question)
+
+        return test
+
 class Question:
     def __init__(self, text: str, options: List[str], correct_answer: int):
 
@@ -825,76 +1250,435 @@ class Question:
 
         return question
 
+    def to_xml(self) -> 'ET.Element':
+        question_elem = ET.Element("question")
+
+        ET.SubElement(question_elem, "text").text = self.text
+
+        # Добавляем варианты ответов
+        options_elem = ET.SubElement(question_elem, "options")
+        for i, option in enumerate(self.options):
+            option_elem = ET.SubElement(options_elem, "option")
+            option_elem.set("index", str(i))
+            option_elem.text = option
+
+        ET.SubElement(question_elem, "correct_answer").text = str(self.correct_answer)
+
+        return question_elem
+
+    @classmethod
+    def from_xml(cls, question_elem: ET.Element) -> 'Question':
+        options = []
+        options_elem = question_elem.find("options")
+        if options_elem is not None:
+            for option_elem in options_elem.findall("option"):
+                options.append(option_elem.text)
+
+        return cls(
+            text=question_elem.find("text").text,
+            options=options,
+            correct_answer=int(question_elem.find("correct_answer").text)
+        )
+
 
 class EducationSystem:
+    def __init__(self):
+        self.students: List[Student] = []
+        self.tutors: List[Tutor] = []
+        self.courses: List[Course] = []
+        self.lessons: List[Lesson] = []
+        self.homeworks: List[Homework] = []
+        self.tests: List[Test] = []
+        self.submissions: List[HomeworkSubmission] = []
+        self.payments: List[Payment] = []
+        self.schedules: List[Schedule] = []
+        self.created_date = datetime.now()
+
+    def add_student(self, student: Student):
+        # Добавить студента в систему
+        self.students.append(student)
+
+    def add_tutor(self, tutor: Tutor):
+        # Добавить репетитора в систему
+        self.tutors.append(tutor)
+
+    def add_course(self, course: Course):
+        # Добавить курс в систему
+        self.courses.append(course)
+
+    def add_lesson(self, lesson: Lesson):
+        # Добавить урок в систему
+        self.lessons.append(lesson)
+
+    def add_homework(self, homework: Homework):
+        # Добавить домашнее задание в систему
+        self.homeworks.append(homework)
+
+    def add_test(self, test: Test):
+        # Добавить тест в систему
+        self.tests.append(test)
+
+    def add_submission(self, submission: HomeworkSubmission):
+        # Добавить сданную работу в систему
+        self.submissions.append(submission)
+
+    def add_payment(self, payment: Payment):
+        # Добавить платеж в систему
+        self.payments.append(payment)
+
+    def add_schedule(self, schedule: Schedule):
+        # Добавить расписание в систему
+        self.schedules.append(schedule)
+
+    def to_dict(self) -> Dict:
+        # Преобразовать всю систему в словарь
+        return {
+            "system_info": {
+                "created_date": self.created_date.isoformat(),
+                "total_students": len(self.students),
+                "total_tutors": len(self.tutors),
+                "total_courses": len(self.courses),
+                "total_lessons": len(self.lessons),
+                "total_homeworks": len(self.homeworks),
+                "total_tests": len(self.tests),
+                "total_submissions": len(self.submissions),
+                "total_payments": len(self.payments),
+                "total_schedules": len(self.schedules)
+            },
+            "students": [student.to_dict() for student in self.students],
+            "tutors": [tutor.to_dict() for tutor in self.tutors],
+            "courses": [course.to_dict() for course in self.courses],
+            "lessons": [lesson.to_dict() for lesson in self.lessons],
+            "homeworks": [homework.to_dict() for homework in self.homeworks],
+            "tests": [test.to_dict() for test in self.tests],
+            "submissions": [submission.to_dict() for submission in self.submissions],
+            "payments": [payment.to_dict() for payment in self.payments],
+            "schedules": [schedule.to_dict() for schedule in self.schedules]
+        }
+
+    def save_to_json(self, filename: str):
+       # Сохранить всю систему в JSON файл
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
+            print(f"Данные сохранены в JSON файл: {filename}")
+        except Exception as e:
+            print(f"Ошибка сохранения JSON: {e}")
+
     def load_from_json(self, filename: str):
-        """Загрузить всю систему из JSON файла"""
+        # Загрузить систему из JSON файла
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
-            print(f"📂 Загружаем данные из {filename}...")
+            print(f"Загружаем данные из {filename}...")
 
-            # 1. Загружаем базовые объекты
+            # Очищаем текущие данные
+            self._clear_data()
+
+            # Загружаем в правильном порядке зависимостей
             self.tutors = [Tutor.from_dict(tutor_data) for tutor_data in data.get("tutors", [])]
             self.students = [Student.from_dict(student_data) for student_data in data.get("students", [])]
             self.courses = [Course.from_dict(course_data, self.tutors) for course_data in data.get("courses", [])]
-
-            # 2. Загружаем уроки (нужны курсы)
-            self.lessons = [Lesson.from_dict(lesson_data, self.courses)
-                            for lesson_data in data.get("lessons", [])]
-
-            # 3. Загружаем домашние задания (нужны уроки)
-            self.homeworks = [Homework.from_dict(hw_data, self.lessons)
-                              for hw_data in data.get("homeworks", [])]
-
-            # 4. Загружаем тесты (нужны уроки)
-            self.tests = [Test.from_dict(test_data, self.lessons)
-                          for test_data in data.get("tests", [])]
-
-            # 5. Загружаем сданные работы (нужны студенты и задания)
+            self.lessons = [Lesson.from_dict(lesson_data, self.courses) for lesson_data in data.get("lessons", [])]
+            self.homeworks = [Homework.from_dict(hw_data, self.lessons) for hw_data in data.get("homeworks", [])]
+            self.tests = [Test.from_dict(test_data, self.lessons) for test_data in data.get("tests", [])]
             self.submissions = [HomeworkSubmission.from_dict(sub_data, self.students, self.homeworks)
                                 for sub_data in data.get("submissions", [])]
-
-            # 6. Загружаем платежи (нужны студенты и курсы)
             self.payments = [Payment.from_dict(payment_data, self.students, self.courses)
                              for payment_data in data.get("payments", [])]
-
-            # 7. Загружаем расписания (нужны студенты, репетиторы и уроки)
             self.schedules = [Schedule.from_dict(schedule_data, self.students, self.tutors, self.lessons)
                               for schedule_data in data.get("schedules", [])]
 
-            # 8. Восстанавливаем все связи
+            # Восстанавливаем связи
             self._restore_all_relationships(data)
 
-            print("Все данные успешно загружены!")
+            print("Все данные успешно загружены из JSON!")
 
         except Exception as e:
-            print(f"Ошибка при загрузке: {e}")
+            print(f"Ошибка при загрузке JSON: {e}")
+
+    def save_to_xml(self, filename: str):
+        # Сохранить всю систему в XML файл
+        try:
+            # Создаем корневой элемент
+            root = ET.Element("education_system")
+
+            # Добавляем информацию о системе
+            system_info = ET.SubElement(root, "system_info")
+            ET.SubElement(system_info, "created_date").text = self.created_date.isoformat()
+            ET.SubElement(system_info, "total_students").text = str(len(self.students))
+            ET.SubElement(system_info, "total_tutors").text = str(len(self.tutors))
+            ET.SubElement(system_info, "total_courses").text = str(len(self.courses))
+            ET.SubElement(system_info, "total_lessons").text = str(len(self.lessons))
+            ET.SubElement(system_info, "total_homeworks").text = str(len(self.homeworks))
+            ET.SubElement(system_info, "total_tests").text = str(len(self.tests))
+            ET.SubElement(system_info, "total_submissions").text = str(len(self.submissions))
+            ET.SubElement(system_info, "total_payments").text = str(len(self.payments))
+            ET.SubElement(system_info, "total_schedules").text = str(len(self.schedules))
+
+            # Добавляем все данные
+            students_elem = ET.SubElement(root, "students")
+            for student in self.students:
+                students_elem.append(student.to_xml())
+
+            tutors_elem = ET.SubElement(root, "tutors")
+            for tutor in self.tutors:
+                tutors_elem.append(tutor.to_xml())
+
+            courses_elem = ET.SubElement(root, "courses")
+            for course in self.courses:
+                courses_elem.append(course.to_xml())
+
+            lessons_elem = ET.SubElement(root, "lessons")
+            for lesson in self.lessons:
+                lessons_elem.append(lesson.to_xml())
+
+            homeworks_elem = ET.SubElement(root, "homeworks")
+            for homework in self.homeworks:
+                homeworks_elem.append(homework.to_xml())
+
+            tests_elem = ET.SubElement(root, "tests")
+            for test in self.tests:
+                tests_elem.append(test.to_xml())
+
+            submissions_elem = ET.SubElement(root, "submissions")
+            for submission in self.submissions:
+                submissions_elem.append(submission.to_xml())
+
+            payments_elem = ET.SubElement(root, "payments")
+            for payment in self.payments:
+                payments_elem.append(payment.to_xml())
+
+            schedules_elem = ET.SubElement(root, "schedules")
+            for schedule in self.schedules:
+                schedules_elem.append(schedule.to_xml())
+
+            # Красивое форматирование XML
+            xml_str = ET.tostring(root, encoding='utf-8')
+            parsed_xml = minidom.parseString(xml_str)
+            pretty_xml = parsed_xml.toprettyxml(indent="  ", encoding='utf-8')
+
+            with open(filename, 'wb') as f:
+                f.write(pretty_xml)
+
+            print(f"Данные сохранены в XML файл: {filename}")
+
+        except Exception as e:
+            print(f"Ошибка сохранения XML: {e}")
+
+    def load_from_xml(self, filename: str):
+        # Загрузить систему из XML файла
+        try:
+            tree = ET.parse(filename)
+            root = tree.getroot()
+
+            print(f"Загружаем данные из XML файла {filename}...")
+
+            # Очищаем текущие данные
+            self._clear_data()
+
+            # Загружаем в правильном порядке зависимостей
+            self._load_tutors_from_xml(root)
+            self._load_students_from_xml(root)
+            self._load_courses_from_xml(root)
+            self._load_lessons_from_xml(root)
+            self._load_homeworks_from_xml(root)
+            self._load_tests_from_xml(root)
+            self._load_submissions_from_xml(root)
+            self._load_payments_from_xml(root)
+            self._load_schedules_from_xml(root)
+
+            # Восстанавливаем связи
+            self._restore_all_relationships_from_xml(root)
+
+            print("Все XML данные успешно загружены!")
+
+        except Exception as e:
+            print(f"Ошибка загрузки XML: {e}")
+
+    def _clear_data(self):
+        # Очистить все данные системы
+        self.students.clear()
+        self.tutors.clear()
+        self.courses.clear()
+        self.lessons.clear()
+        self.homeworks.clear()
+        self.tests.clear()
+        self.submissions.clear()
+        self.payments.clear()
+        self.schedules.clear()
+
+    def _load_tutors_from_xml(self, root: ET.Element):
+        # Загрузить репетиторов из XML
+        tutors_elem = root.find("tutors")
+        if tutors_elem is not None:
+            for tutor_elem in tutors_elem.findall("tutor"):
+                tutor = Tutor.from_xml(tutor_elem)
+                self.tutors.append(tutor)
+            print(f"Загружено репетиторов: {len(self.tutors)}")
+
+    def _load_students_from_xml(self, root: ET.Element):
+        # Загрузить студентов из XML
+        students_elem = root.find("students")
+        if students_elem is not None:
+            for student_elem in students_elem.findall("student"):
+                student = Student.from_xml(student_elem)
+                self.students.append(student)
+            print(f"Загружено студентов: {len(self.students)}")
+
+    def _load_courses_from_xml(self, root: ET.Element):
+        # Загрузить курсы из XML
+        courses_elem = root.find("courses")
+        if courses_elem is not None:
+            for course_elem in courses_elem.findall("course"):
+                course = Course.from_xml(course_elem, self.tutors)
+                self.courses.append(course)
+            print(f"Загружено курсов: {len(self.courses)}")
+
+    def _load_lessons_from_xml(self, root: ET.Element):
+        # Загрузить уроки из XML
+        lessons_elem = root.find("lessons")
+        if lessons_elem is not None:
+            for lesson_elem in lessons_elem.findall("lesson"):
+                lesson = Lesson.from_xml(lesson_elem, self.courses)
+                self.lessons.append(lesson)
+            print(f"Загружено уроков: {len(self.lessons)}")
+
+    def _load_homeworks_from_xml(self, root: ET.Element):
+        # Загрузить домашние задания из XML
+        homeworks_elem = root.find("homeworks")
+        if homeworks_elem is not None:
+            for homework_elem in homeworks_elem.findall("homework"):
+                homework = Homework.from_xml(homework_elem, self.lessons)
+                self.homeworks.append(homework)
+            print(f"Загружено домашних заданий: {len(self.homeworks)}")
+
+    def _load_tests_from_xml(self, root: ET.Element):
+        # Загрузить тесты из XML
+        tests_elem = root.find("tests")
+        if tests_elem is not None:
+            for test_elem in tests_elem.findall("test"):
+                test = Test.from_xml(test_elem, self.lessons)
+                self.tests.append(test)
+            print(f"Загружено тестов: {len(self.tests)}")
+
+    def _load_submissions_from_xml(self, root: ET.Element):
+        # Загрузить сданные работы из XML
+        submissions_elem = root.find("submissions")
+        if submissions_elem is not None:
+            for submission_elem in submissions_elem.findall("homework_submission"):
+                submission = HomeworkSubmission.from_xml(submission_elem, self.students, self.homeworks)
+                self.submissions.append(submission)
+            print(f"Загружено сданных работ: {len(self.submissions)}")
+
+    def _load_payments_from_xml(self, root: ET.Element):
+        # Загрузить платежи из XML
+        payments_elem = root.find("payments")
+        if payments_elem is not None:
+            for payment_elem in payments_elem.findall("payment"):
+                payment = Payment.from_xml(payment_elem, self.students, self.courses)
+                self.payments.append(payment)
+            print(f"Загружено платежей: {len(self.payments)}")
+
+    def _load_schedules_from_xml(self, root: ET.Element):
+        # Загрузить расписания из XML
+        schedules_elem = root.find("schedules")
+        if schedules_elem is not None:
+            for schedule_elem in schedules_elem.findall("schedule"):
+                schedule = Schedule.from_xml(schedule_elem, self.students, self.tutors, self.lessons)
+                self.schedules.append(schedule)
+            print(f"Загружено расписаний: {len(self.schedules)}")
 
     def _restore_all_relationships(self, data: Dict):
-        # Восстанавливаем связи курсов
+        # Восстановить все связи между объектами
+        # Восстанавливаем enrolled_courses для студентов
+        for student_data, student_obj in zip(data.get("students", []), self.students):
+            course_names = student_data.get("enrolled_courses", [])
+            for course_name in course_names:
+                course = next((c for c in self.courses if c.name == course_name), None)
+                if course and course not in student_obj.enrolled_courses:
+                    student_obj.enrolled_courses.append(course)
+                    if student_obj not in course.students:
+                        course.students.append(student_obj)
+
+        # Восстанавливаем courses_taught для репетиторов
+        for tutor_data, tutor_obj in zip(data.get("tutors", []), self.tutors):
+            course_names = tutor_data.get("courses_taught", [])
+            for course_name in course_names:
+                course = next((c for c in self.courses if c.name == course_name), None)
+                if course and course not in tutor_obj.courses_taught:
+                    tutor_obj.courses_taught.append(course)
+
+        # Восстанавливаем уроки для курсов
         for course_data, course_obj in zip(data.get("courses", []), self.courses):
-            # Уроки курса
             lesson_names = [lesson["name"] for lesson in course_data.get("lessons", [])]
             for lesson_name in lesson_names:
                 lesson = next((l for l in self.lessons if l.name == lesson_name), None)
-                if lesson:
-                    course_obj.add_lessons(lesson)
-
-            # Студенты курса
-            student_names = course_data.get("students", [])
-            for student_name in student_names:
-                student = next((s for s in self.students
-                                if f"{s.first_name} {s.last_name}" == student_name), None)
-                if student:
-                    course_obj.add_student(student)
-
-        for lesson_data, lesson_obj in zip(data.get("lessons", []), self.lessons):
-            homework_titles = [hw["title"] for hw in lesson_data.get("homeworks", [])]
-            for hw_title in homework_titles:
-                homework = next((h for h in self.homeworks if h.title == hw_title), None)
-                if homework:
-                    lesson_obj.add_homework(homework)
+                if lesson and lesson not in course_obj.lesson:
+                    course_obj.lesson.append(lesson)
 
         print("Все связи между объектами восстановлены")
+
+    def _restore_all_relationships_from_xml(self, root: ET.Element):
+        """Восстановить все связи из XML"""
+        self._restore_student_courses_from_xml(root)
+        self._restore_tutor_courses_from_xml(root)
+        self._restore_course_lessons_from_xml(root)
+        self._restore_lesson_homeworks_from_xml(root)
+
+        print("Все связи из XML восстановлены")
+
+    def _restore_student_courses_from_xml(self, root: ET.Element):
+        # Восстановить связи студентов с курсами
+        students_elem = root.find("students")
+        if students_elem is not None:
+            for student_elem, student_obj in zip(students_elem.findall("student"), self.students):
+                courses_elem = student_elem.find("enrolled_courses")
+                if courses_elem is not None:
+                    for course_elem in courses_elem.findall("course"):
+                        course_name = course_elem.text
+                        course = next((c for c in self.courses if c.name == course_name), None)
+                        if course and course not in student_obj.enrolled_courses:
+                            student_obj.enrolled_courses.append(course)
+                            if student_obj not in course.students:
+                                course.students.append(student_obj)
+
+    def _restore_tutor_courses_from_xml(self, root: ET.Element):
+        # Восстановить связи репетиторов с курсами
+        tutors_elem = root.find("tutors")
+        if tutors_elem is not None:
+            for tutor_elem, tutor_obj in zip(tutors_elem.findall("tutor"), self.tutors):
+                courses_elem = tutor_elem.find("courses_taught")
+                if courses_elem is not None:
+                    for course_elem in courses_elem.findall("course"):
+                        course_name = course_elem.text
+                        course = next((c for c in self.courses if c.name == course_name), None)
+                        if course and course not in tutor_obj.courses_taught:
+                            tutor_obj.courses_taught.append(course)
+
+    def _restore_course_lessons_from_xml(self, root: ET.Element):
+        # Восстановить связи курсов с уроками
+        courses_elem = root.find("courses")
+        if courses_elem is not None:
+            for course_elem, course_obj in zip(courses_elem.findall("course"), self.courses):
+                lessons_elem = course_elem.find("lessons")
+                if lessons_elem is not None:
+                    for lesson_elem in lessons_elem.findall("lesson"):
+                        lesson_name = lesson_elem.find("name").text
+                        lesson = next((l for l in self.lessons if l.name == lesson_name), None)
+                        if lesson and lesson not in course_obj.lesson:
+                            course_obj.lesson.append(lesson)
+
+    def _restore_lesson_homeworks_from_xml(self, root: ET.Element):
+        # Восстановить связи уроков с домашними заданиями
+        lessons_elem = root.find("lessons")
+        if lessons_elem is not None:
+            for lesson_elem, lesson_obj in zip(lessons_elem.findall("lesson"), self.lessons):
+                homeworks_elem = lesson_elem.find("homeworks")
+                if homeworks_elem is not None:
+                    for homework_elem in homeworks_elem.findall("homework"):
+                        homework_title = homework_elem.find("title").text
+                        homework = next((h for h in self.homeworks if h.title == homework_title), None)
+                        if homework and homework not in lesson_obj.homeworks:
+                            lesson_obj.homeworks.append(homework)
