@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Dict, List, Optional
+import json
 
 class EducationException(Exception):
     ##Базовое исключение для системы образования
@@ -99,8 +100,21 @@ class Person(ABC):
             "role": self.role
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'Person':
+        return cls(
+            first_name=data["first_name"],
+            last_name=data["last_name"],
+            age=data["age"],
+            phone=data["phone"],
+            email=data["email"],
+            user_id=data["user_id"],
+            role=data["role"]
+        )
+
     def display_info(self):
         pass
+
 
 
 class Student(Person):
@@ -136,6 +150,30 @@ class Student(Person):
 
     def view_the_schedule(self):
         self.schedule.display_schedule()
+
+    def to_dict(self) -> Dict:
+        data = super().to_dict()
+        data.update({
+            "grade": self.grade,
+            "enrolled_courses": [course.name for course in self.enrolled_courses]
+        })
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'Student':
+        student = cls(
+            first_name=data["first_name"],
+            last_name=data["last_name"],
+            age=data["age"],
+            phone=data["phone"],
+            email=data["email"],
+            user_id=data["user_id"],
+            grade=data["grade"]
+        )
+
+        # enrolled_courses мы восстановим позже, когда загрузим все курсы
+        return student
+
 
 class Tutor(Person):
     def __init__(self, first_name: str, last_name :str, age: int, phone: str,
@@ -188,6 +226,35 @@ class Tutor(Person):
 
     def view_the_schedule(self):
         self.schedule.display_schedule()
+
+    def to_dict(self) -> Dict:
+        data = super().to_dict()
+        data.update({
+            "subject": self.subject,
+            "experience": self.experience,
+            "bio": self.bio,
+            "courses_taught": [course.name for course in self.courses_taught]
+        })
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'Tutor':
+        tutor = cls(
+            first_name=data["first_name"],
+            last_name=data["last_name"],
+            age=data["age"],
+            phone=data["phone"],
+            email=data["email"],
+            user_id=data["user_id"],
+            role="tutor",
+            subject=data["subject"],
+            experience=data["experience"],
+            bio=data["bio"]
+        )
+
+        # courses_taught восстановим позже
+        return tutor
+
 
 class Course():
     def __init__(self, name: str, tutor: Tutor, subject: str, description: str,
@@ -244,6 +311,41 @@ class Course():
         self.lesson.append(new_lesson)
         print(f"Урок '{new_lesson.name}' добавлен в курс '{self.name}'")
 
+    def to_dict(self) -> Dict:
+        return {
+            "name": self.name,
+            "tutor": self.tutor.first_name + " " + self.tutor.last_name,
+            "subject": self.subject,
+            "description": self.description,
+            "time": self.time,
+            "month_price": self.month_price,
+            "status": self.status,
+            "students_count": len(self.students),
+            "students": [student.first_name + " " + student.last_name for student in self.students],
+            "lessons_count": len(self.lesson),
+            "lessons": [lesson.to_dict() for lesson in self.lesson]  # все уроки курса
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict, tutors: List[Tutor]) -> 'Course':
+        tutor_name = data["tutor"]
+        tutor = next((t for t in tutors if f"{t.first_name} {t.last_name}" == tutor_name), None)
+
+        if not tutor:
+            raise EducationException(f"Репетитор {tutor_name} не найден при загрузке курса")
+
+        course = cls(
+            name=data["name"],
+            tutor=tutor,
+            subject=data["subject"],
+            description=data["description"],
+            time=data["time"],
+            month_price=data["month_price"],
+            status=data["status"]
+        )
+        return course
+
+
 class Schedule():
     def __init__(self, student: Student, tutor: Tutor):
         self.student = student
@@ -295,6 +397,47 @@ class Schedule():
             for lesson in day_lessons:
                 print(f"   {lesson.start_time}-{lesson.end_time}: {lesson.name}")
 
+    def to_dict(self) -> Dict:
+        person = self.student if self.student else self.tutor
+        return {
+            "person": person.first_name + " " + person.last_name,
+            "role": "student" if self.student else "tutor",
+            "lessons_count": len(self.lessons),
+            "upcoming_lessons": [
+                {
+                    "name": lesson.name,
+                    "date": lesson.date,
+                    "time": f"{lesson.start_time}-{lesson.end_time}"
+                }
+                for lesson in self.get_upcoming_lessons()[:5]
+            ]
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict, students: List[Student], tutors: List[Tutor], lessons: List['Lesson']) -> 'Schedule':
+        # Находим человека (студента или репетитора)
+        person_name = data["person"]
+        role = data["role"]
+
+        if role == "student":
+            person = next((s for s in students if f"{s.first_name} {s.last_name}" == person_name), None)
+            schedule = cls(student=person)
+        else:
+            person = next((t for t in tutors if f"{t.first_name} {t.last_name}" == person_name), None)
+            schedule = cls(tutor=person)
+
+        if not person:
+            raise EducationException(f"Человек '{person_name}' не найден при загрузке расписания")
+
+        # Восстанавливаем уроки
+        for lesson_data in data.get("upcoming_lessons", []):
+            lesson_name = lesson_data["name"]
+            lesson = next((l for l in lessons if l.name == lesson_name), None)
+            if lesson:
+                schedule.add_lesson(lesson)
+
+        return schedule
+
 class Lesson():
     def __init__(self,name: str, description: str, course: Course,
                  start_time: str, end_time: str, date: str):
@@ -318,6 +461,37 @@ class Lesson():
 
     def add_homework(self, homework: 'Homework'):
         self.homeworks.append(homework)
+
+    def to_dict(self) -> Dict:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "course": self.course.name,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "date": self.date,
+            "homeworks_count": len(self.homeworks)
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict, courses: List[Course]) -> 'Lesson':
+        """Создать урок из словаря"""
+        # Находим курс
+        course_name = data["course"]
+        course = next((c for c in courses if c.name == course_name), None)
+        if not course:
+            raise EducationException(f"Курс '{course_name}' не найден при загрузке урока")
+
+        lesson = cls(
+            name=data["name"],
+            description=data["description"],
+            course=course,
+            start_time=data["start_time"],
+            end_time=data["end_time"],
+            date=data["date"]
+        )
+
+        return lesson
 
 class Payment():
     def __init__(self, student: Student, month: str, year: int):
@@ -377,6 +551,60 @@ class Payment():
         course_names = [course.name for course in self.courses]
         return f"Платеж за {self.month}: {', '.join(course_names)} - {self.total_amount} руб."
 
+    def to_dict(self) -> Dict:
+        return {
+            "payment_info": {
+                "month": self.month,
+                "year": self.year,
+                "total_amount": self.total_amount,
+                "status": self.status,
+                "payment_date": self.payment_date.isoformat() if self.payment_date else None
+            },
+            "student": self.student.first_name + " " + self.student.last_name,
+            "student_id": self.student.user_id,
+            "courses": [
+                {
+                    "name": course.name,
+                    "price": course.month_price,
+                    "tutor": course.tutor.first_name + " " + course.tutor.last_name
+                }
+                for course in self.courses
+            ],
+            "summary": {
+                "courses_count": len(self.courses),
+                "total_amount": self.total_amount,
+                "is_paid": self.status == "paid"
+            }
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict, students: List[Student], courses: List[Course]) -> 'Payment':
+        # Находим студента
+        student_id = data["student_id"]
+        student = next((s for s in students if s.user_id == student_id), None)
+        if not student:
+            raise EducationException(f"Студент с ID {student_id} не найден при загрузке платежа")
+
+        payment = cls(
+            student=student,
+            month=data["payment_info"]["month"],
+            year=data["payment_info"]["year"]
+        )
+
+        # Восстанавливаем статус и дату
+        payment.status = data["payment_info"]["status"]
+        if data["payment_info"]["payment_date"]:
+            payment.payment_date = datetime.fromisoformat(data["payment_info"]["payment_date"])
+
+        # Добавляем курсы
+        for course_data in data["courses"]:
+            course_name = course_data["name"]
+            course = next((c for c in courses if c.name == course_name), None)
+            if course:
+                payment.add_course(course)
+
+        return payment
+
 class Homework():
     def __init__(self, title: str, description: str, lesson: Lesson,
                  deadline: str, max_score: int = 100):
@@ -397,6 +625,38 @@ class Homework():
         self.max_score = max_score
         self.attachments: List[str] = []
         self.student_submissions: Dict[Student, 'HomeworkSubmission'] = {}
+
+    def to_dict(self) -> Dict:
+        return {
+            "title": self.title,
+            "description": self.description,
+            "lesson": self.lesson.name,
+            "deadline": self.deadline,
+            "max_score": self.max_score,
+            "attachments_count": len(self.attachments),
+            "submissions_count": len(self.student_submissions)
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict, lessons: List[Lesson]) -> 'Homework':
+        # Находим урок
+        lesson_name = data["lesson"]
+        lesson = next((l for l in lessons if l.name == lesson_name), None)
+        if not lesson:
+            raise EducationException(f"Урок '{lesson_name}' не найден при загрузке задания")
+
+        homework = cls(
+            title=data["title"],
+            description=data["description"],
+            lesson=lesson,
+            deadline=data["deadline"],
+            max_score=data["max_score"]
+        )
+
+        # Восстанавливаем вложения
+        homework.attachments = data.get("attachments", [])
+
+        return homework
 
 class HomeworkSubmission():
     def __init__(self, student: Student, homework: Homework,
@@ -443,6 +703,45 @@ class HomeworkSubmission():
         else:
             return "2"
 
+    def to_dict(self) -> Dict:
+        return {
+            "student": self.student.first_name + " " + self.student.last_name,
+            "homework": self.homework.title,
+            "answer_preview": self.answer[:50] + "..." if len(self.answer) > 50 else self.answer,  # первые 50 символов
+            "submitted_date": self.submitted_date,
+            "score": self.score,
+            "score_percentage": self.get_score_percentage(),
+            "grade_letter": self.get_grade_letter(),
+            "has_feedback": bool(self.feedback.strip())
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict, students: List[Student], homeworks: List[Homework]) -> 'HomeworkSubmission':
+        # Находим студента
+        student_name = data["student"]
+        student = next((s for s in students if f"{s.first_name} {s.last_name}" == student_name), None)
+        if not student:
+            raise EducationException(f"Студент '{student_name}' не найден при загрузке работы")
+
+        # Находим задание
+        homework_title = data["homework"]
+        homework = next((h for h in homeworks if h.title == homework_title), None)
+        if not homework:
+            raise EducationException(f"Задание '{homework_title}' не найден при загрузке работы")
+
+        submission = cls(
+            student=student,
+            homework=homework,
+            answer=data["answer"],
+            submitted_date=data["submitted_date"]
+        )
+
+        # Восстанавливаем оценку и комментарий
+        submission.score = data.get("score")
+        submission.feedback = data.get("feedback", "")
+
+        return submission
+
 class Test():
     def __init__(self, title: str, lesson: Lesson):
 
@@ -469,6 +768,29 @@ class Test():
                 score += 1
         return score
 
+    def to_dict(self) -> Dict:
+        return {
+            "title": self.title,
+            "lesson": self.lesson.name,
+            "questions_count": len(self.questions),
+            "total_points": sum(1 for _ in self.questions)
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict, lessons: List[Lesson]) -> 'Test':
+        # Находим урок
+        lesson_name = data["lesson"]
+        lesson = next((l for l in lessons if l.name == lesson_name), None)
+        if not lesson:
+            raise EducationException(f"Урок '{lesson_name}' не найден при загрузке теста")
+
+        test = cls(
+            title=data["title"],
+            lesson=lesson
+        )
+
+        return test
+
 class Question:
     def __init__(self, text: str, options: List[str], correct_answer: int):
 
@@ -485,3 +807,94 @@ class Question:
         self.options = options
         self.correct_answer = correct_answer
 
+    def to_dict(self) -> Dict:
+        return {
+            "text": self.text,
+            "options": self.options,
+            "correct_answer_index": self.correct_answer,
+            "correct_answer_text": self.options[self.correct_answer]
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'Question':
+        question = cls(
+            text=data["text"],
+            options=data["options"],
+            correct_answer=data["correct_answer_index"]
+        )
+
+        return question
+
+
+class EducationSystem:
+    def load_from_json(self, filename: str):
+        """Загрузить всю систему из JSON файла"""
+        try:
+            with open(filename, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            print(f"📂 Загружаем данные из {filename}...")
+
+            # 1. Загружаем базовые объекты
+            self.tutors = [Tutor.from_dict(tutor_data) for tutor_data in data.get("tutors", [])]
+            self.students = [Student.from_dict(student_data) for student_data in data.get("students", [])]
+            self.courses = [Course.from_dict(course_data, self.tutors) for course_data in data.get("courses", [])]
+
+            # 2. Загружаем уроки (нужны курсы)
+            self.lessons = [Lesson.from_dict(lesson_data, self.courses)
+                            for lesson_data in data.get("lessons", [])]
+
+            # 3. Загружаем домашние задания (нужны уроки)
+            self.homeworks = [Homework.from_dict(hw_data, self.lessons)
+                              for hw_data in data.get("homeworks", [])]
+
+            # 4. Загружаем тесты (нужны уроки)
+            self.tests = [Test.from_dict(test_data, self.lessons)
+                          for test_data in data.get("tests", [])]
+
+            # 5. Загружаем сданные работы (нужны студенты и задания)
+            self.submissions = [HomeworkSubmission.from_dict(sub_data, self.students, self.homeworks)
+                                for sub_data in data.get("submissions", [])]
+
+            # 6. Загружаем платежи (нужны студенты и курсы)
+            self.payments = [Payment.from_dict(payment_data, self.students, self.courses)
+                             for payment_data in data.get("payments", [])]
+
+            # 7. Загружаем расписания (нужны студенты, репетиторы и уроки)
+            self.schedules = [Schedule.from_dict(schedule_data, self.students, self.tutors, self.lessons)
+                              for schedule_data in data.get("schedules", [])]
+
+            # 8. Восстанавливаем все связи
+            self._restore_all_relationships(data)
+
+            print("Все данные успешно загружены!")
+
+        except Exception as e:
+            print(f"Ошибка при загрузке: {e}")
+
+    def _restore_all_relationships(self, data: Dict):
+        # Восстанавливаем связи курсов
+        for course_data, course_obj in zip(data.get("courses", []), self.courses):
+            # Уроки курса
+            lesson_names = [lesson["name"] for lesson in course_data.get("lessons", [])]
+            for lesson_name in lesson_names:
+                lesson = next((l for l in self.lessons if l.name == lesson_name), None)
+                if lesson:
+                    course_obj.add_lessons(lesson)
+
+            # Студенты курса
+            student_names = course_data.get("students", [])
+            for student_name in student_names:
+                student = next((s for s in self.students
+                                if f"{s.first_name} {s.last_name}" == student_name), None)
+                if student:
+                    course_obj.add_student(student)
+
+        for lesson_data, lesson_obj in zip(data.get("lessons", []), self.lessons):
+            homework_titles = [hw["title"] for hw in lesson_data.get("homeworks", [])]
+            for hw_title in homework_titles:
+                homework = next((h for h in self.homeworks if h.title == hw_title), None)
+                if homework:
+                    lesson_obj.add_homework(homework)
+
+        print("Все связи между объектами восстановлены")
