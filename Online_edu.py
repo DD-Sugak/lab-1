@@ -40,13 +40,13 @@ class Person(ABC):
         self.first_name = first_name
         self.last_name = last_name
         self.age = age
-        self.phone = str(phone)
+        self.phone = self._validate_and_normalize_phone(phone)
         self.email = email
         self.user_id = user_id
         self.role = role
 
     @abstractmethod
-
+    # проверка на правильный ввод данных
     def _validate_person_data(self, first_name: str, last_name: str, email: str, phone: str, age: int):
 
         if not first_name.replace("-", "").isalpha():
@@ -61,7 +61,7 @@ class Person(ABC):
         if age < 0 or age > 100:
             raise EducationException("Некорректный возраст")
 
-
+    # проверка и нормальзация номера телефона
     def _validate_and_normalize_phone(self, phone: str) -> str:
 
         clean_phone = ''.join(c for c in phone if c.isdigit())
@@ -90,6 +90,7 @@ class Person(ABC):
 
         return normalized_phone
 
+    # добавить данные в словарь
     @abstractmethod
     def to_dict(self) -> Dict:
         return {
@@ -102,6 +103,7 @@ class Person(ABC):
             "role": self.role
         }
 
+    # получить из словаря
     @classmethod
     def from_dict(cls, data: Dict) -> 'Person':
         return cls(
@@ -114,6 +116,7 @@ class Person(ABC):
             role=data["role"]
         )
 
+    # перевести данные в XML
     def to_xml(self) -> 'ET.Element':
         person_elem = ET.Element("person")
         ET.SubElement(person_elem, "first_name").text = self.first_name
@@ -125,6 +128,7 @@ class Person(ABC):
         ET.SubElement(person_elem, "role").text = self.role
         return person_elem
 
+    # получть данные из XML
     @classmethod
     def from_xml(cls, person_elem: ET.Element) -> 'Person':
         ##Создать человека из XML элемента
@@ -138,14 +142,16 @@ class Person(ABC):
             role=person_elem.find("role").text
         )
 
+    # отображение инфориации
     def display_info(self):
         pass
 
 
-
+# класс Студент/Ученик
 class Student(Person):
     def __init__(self, first_name: str, last_name :str, age: int, phone: str,
                  email: str, user_id: int, grade: int):
+        self._validate_person_data(first_name, last_name, email, phone, age)
 
         if grade < 1 or grade > 11:
             raise EducationException("Некорректный класс")
@@ -153,13 +159,29 @@ class Student(Person):
         super().__init__(first_name, last_name, age, phone, email, user_id, "student")
         self.grade = grade
         self.enrolled_courses: List[Course] = []
-        self.schedule = Schedule(student=self)
+        self.schedule = Schedule(student=self, tutor=None)
 
+    def _validate_person_data(self, first_name: str, last_name: str, email: str, phone: str, age: int):
+        ##Валидация данных пользователя
+        if not first_name.replace("-", "").isalpha():
+            raise EducationException("Имя должно содержать только буквы")
+
+        if not last_name.replace("-", "").isalpha():
+            raise EducationException("Фамилия должна содержать только буквы")
+
+        if "@" not in email:
+            raise EducationException("Некорректный email")
+
+        if age < 0 or age > 100:
+            raise EducationException("Некорректный возраст")
+
+    # отображение информации о пользователе
     def display_info(self):
         print(f"Студент: {self.first_name} {self.last_name}")
         print(f"Класс: {self.grade}")
         print(f"Курсов записано: {len(self.enrolled_courses)}")
 
+    # выбрать курс
     def choose_a_course(self, course:'Course'):
 
         if not isinstance(course, Course):
@@ -171,9 +193,11 @@ class Student(Person):
         course.add_student(self)
         self.enrolled_courses.append(course)
 
+    # получить список курсов на которые записан ученик
     def get_course(self):
         return self.enrolled_courses
 
+    # посмотреть расписание#
     def view_the_schedule(self):
         self.schedule.display_schedule()
 
@@ -197,7 +221,7 @@ class Student(Person):
             grade=data["grade"]
         )
 
-        # enrolled_courses мы восстановим позже, когда загрузим все курсы
+
         return student
 
     def to_xml(self) -> 'ET.Element':
@@ -226,13 +250,13 @@ class Student(Person):
             grade=int(student_elem.find("grade").text)
         )
 
-        # enrolled_courses восстановим позже
         return student
 
-
+# класс Репетитор/Учитель
 class Tutor(Person):
     def __init__(self, first_name: str, last_name :str, age: int, phone: str,
-                 email: str, user_id: int, role: str, subject: str,  experience: int, bio: str):
+                 email: str, user_id: int,  subject: str,  experience: int, bio: str):
+         self._validate_person_data(first_name, last_name, email, phone, age)
          super().__init__(first_name, last_name, age, phone, email, user_id, "tutor")
 
          if not subject or not subject.strip():
@@ -245,7 +269,21 @@ class Tutor(Person):
          self.experience = experience
          self.bio = bio
          self.courses_taught: List[Course] = []
-         self.schedule = Schedule(tutor=self)
+         self.schedule = Schedule(student=None, tutor=self)
+
+    def _validate_person_data(self, first_name: str, last_name: str, email: str, phone: str, age: int):
+        ##Валидация данных пользователя (реализация абстрактного метода)
+        if not first_name.replace("-", "").isalpha():
+            raise EducationException("Имя должно содержать только буквы")
+
+        if not last_name.replace("-", "").isalpha():
+            raise EducationException("Фамилия должна содержать только буквы")
+
+        if "@" not in email:
+            raise EducationException("Некорректный email")
+
+        if age < 0 or age > 100:
+            raise EducationException("Некорректный возраст")
 
 
     def display_info(self):
@@ -253,7 +291,7 @@ class Tutor(Person):
         print(f"Предмет: {self.subject}")
         print(f"Опыт: {self.experience} лет")
 
-
+    # создание репетитором курса
     def create_course(self, name: str, subject: str, description: str,
                  time: str, month_price: str, status: str) -> 'Course':
 
@@ -274,8 +312,8 @@ class Tutor(Person):
         if status not in valid_statuses:
             raise EducationException(f"Недопустимый статус. Допустимые: {', '.join(valid_statuses)}")
 
-        course = Course(name=name, tutor=self, subject=subject,  # передай все параметры
-                        description=description, time=time, price=price, status=status)
+        course = Course(name=name, tutor=self, subject=subject,
+                        description=description, time=time, month_price=month_price, status=status)
         self.courses_taught.append(course)
         return course
 
@@ -301,13 +339,12 @@ class Tutor(Person):
             phone=data["phone"],
             email=data["email"],
             user_id=data["user_id"],
-            role="tutor",
             subject=data["subject"],
             experience=data["experience"],
             bio=data["bio"]
         )
 
-        # courses_taught восстановим позже
+
         return tutor
 
     def to_xml(self) -> 'ET.Element':
@@ -335,16 +372,14 @@ class Tutor(Person):
             phone=tutor_elem.find("phone").text,
             email=tutor_elem.find("email").text,
             user_id=int(tutor_elem.find("user_id").text),
-            role="tutor",
             subject=tutor_elem.find("subject").text,
             experience=int(tutor_elem.find("experience").text),
             bio=tutor_elem.find("bio").text
         )
 
-        # courses_taught восстановим позже
         return tutor
 
-
+# класс Курс
 class Course():
     def __init__(self, name: str, tutor: Tutor, subject: str, description: str,
                  time: str, month_price: str, status: str):
@@ -368,8 +403,7 @@ class Course():
         self.students = []
         self.lesson = []
 
-
-
+    # добавить студента на курс
     def add_student(self, student: Student):
         if not isinstance(student, Student):
             raise EnrollmentException("Только студенты могут записываться на курсы")
@@ -380,15 +414,19 @@ class Course():
         self.students.append(student)
         print(f"Студент {student.first_name} добавлен на курс {self.name}")
 
+    # получить список уроков
     def get_lessons(self):
         return self.lesson
 
+    # получить список студентов
     def get_students(self):
         return self.students
 
+    # изменить статус курса
     def change_status(self,new_status: str):
         self.status = new_status
 
+    # добавить урок на курс
     def add_lessons(self, new_lesson: str):
 
         if not isinstance(new_lesson, Lesson):
@@ -482,13 +520,16 @@ class Course():
 
         return course
 
-
+# класс Расписания
 class Schedule():
     def __init__(self, student: Student, tutor: Tutor):
+        if student is None and tutor is None:
+            raise EducationException("Schedule must have either student or tutor")
         self.student = student
         self.tutor = tutor
         self.lessons: List[Lesson] = []
 
+    # добавить урок в расписание
     def add_lesson(self, lesson: 'Lesson'):
 
         if not isinstance(lesson, Lesson):
@@ -500,9 +541,11 @@ class Schedule():
         self.lessons.append(lesson)
         print(f"Урок '{lesson.name}' добавлен в расписание")
 
+    # получить отсортированный список предстоящих уроков
     def get_upcoming_lessons(self):
         return sorted(self.lessons, key=lambda x: (x.date, x.start_time))
 
+    # отменить урок
     def cancel_lesson(self, lesson_name: str):
         for lesson in self.lessons:
             if lesson.name == lesson_name:
@@ -511,13 +554,12 @@ class Schedule():
                 return
         print(f"Урок '{lesson_name}' не найден")
 
-    def get_upcoming_lessons(self):
-        return self.lessons
-
+    # полуть урок по определённой дате
     def get_lessons_by_date(self, date: str):
         day_lessons = [lesson for lesson in self.lessons if lesson.date == date]
         return sorted(day_lessons, key=lambda x: x.start_time)
 
+    # показать расписание
     def display_schedule(self):
         person = self.student if self.student else self.tutor
         role = "Студент" if self.student else "Репетитор"
@@ -552,16 +594,15 @@ class Schedule():
 
     @classmethod
     def from_dict(cls, data: Dict, students: List[Student], tutors: List[Tutor], lessons: List['Lesson']) -> 'Schedule':
-        # Находим человека (студента или репетитора)
         person_name = data["person"]
         role = data["role"]
 
         if role == "student":
             person = next((s for s in students if f"{s.first_name} {s.last_name}" == person_name), None)
-            schedule = cls(student=person)
+            schedule = cls(student=person, tutor=None)
         else:
             person = next((t for t in tutors if f"{t.first_name} {t.last_name}" == person_name), None)
-            schedule = cls(tutor=person)
+            schedule = cls(student=None, tutor=person)
 
         if not person:
             raise EducationException(f"Человек '{person_name}' не найден при загрузке расписания")
@@ -627,6 +668,7 @@ class Schedule():
 
         return schedule
 
+# класс Урок
 class Lesson():
     def __init__(self,name: str, description: str, course: Course,
                  start_time: str, end_time: str, date: str):
@@ -648,6 +690,7 @@ class Lesson():
         self.date = date
         self.homeworks : List[Homework] = []
 
+    # добавить домашнее задание к уроку
     def add_homework(self, homework: 'Homework'):
         self.homeworks.append(homework)
 
@@ -664,7 +707,7 @@ class Lesson():
 
     @classmethod
     def from_dict(cls, data: Dict, courses: List[Course]) -> 'Lesson':
-        """Создать урок из словаря"""
+        # Создать урок из словаря
         # Находим курс
         course_name = data["course"]
         course = next((c for c in courses if c.name == course_name), None)
@@ -683,7 +726,7 @@ class Lesson():
         return lesson
 
     def to_xml(self) -> 'ET.Element':
-        """Преобразовать урок в XML элемент"""
+        # Преобразовать урок в XML элемент
         lesson_elem = ET.Element("lesson")
 
         ET.SubElement(lesson_elem, "name").text = self.name
@@ -721,6 +764,8 @@ class Lesson():
 
         return lesson
 
+
+# класс Оплаты
 class Payment():
     def __init__(self, student: Student, month: str, year: int):
 
@@ -741,9 +786,10 @@ class Payment():
         self.year = year
         self.courses: List[Course] = []
         self.total_amount = 0.0
-        self.status = "pending"
+        self.status = "pending" # pending, paid, cancelled
         self.payment_date = None
 
+    # добавить курс к оплате
     def add_course(self, course: Course):
 
         if not isinstance(course, Course):
@@ -755,11 +801,13 @@ class Payment():
         self.courses.append(course)
         self.total_amount += self._parse_price(course.month_price)
 
+    # нормальзирует цену (Удаляет все нецифровые символы кроме точки и запятой)
     def _parse_price(self, price_str: str) -> float:
         clean_price = ''.join(c for c in price_str if c.isdigit() or c in ',.')
         clean_price = clean_price.replace(',', '.')
         return float(clean_price)
 
+    # обработать платеж (перевести статус в "paid")
     def process_payment(self):
 
         if not self.courses:
@@ -775,6 +823,7 @@ class Payment():
         self.payment_date = datetime.now()
         print(f"Оплата за {self.month} {self.year}: {len(self.courses)} курсов на сумму {self.total_amount} руб.")
 
+    # получить информацию о платеже
     def get_payment_info(self):
         course_names = [course.name for course in self.courses]
         return f"Платеж за {self.month}: {', '.join(course_names)} - {self.total_amount} руб."
@@ -895,6 +944,7 @@ class Payment():
 
         return payment
 
+# класс Домашней работы
 class Homework():
     def __init__(self, title: str, description: str, lesson: Lesson,
                  deadline: str, max_score: int = 100):
@@ -988,7 +1038,7 @@ class Homework():
                 homework.attachments.append(file_elem.text)
 
         return homework
-
+# класс сднланной домашней работы
 class HomeworkSubmission():
     def __init__(self, student: Student, homework: Homework,
                  answer: str, submitted_date: str):
@@ -1009,6 +1059,7 @@ class HomeworkSubmission():
         self.score: Optional[int] = None  # оценка
         self.feedback: str = ""
 
+    # поставить оценку
     def set_score(self, score: int):
         if score < 0:
             raise EducationException("Оценка не может быть отрицательной")
@@ -1018,11 +1069,13 @@ class HomeworkSubmission():
 
         self.score = score
 
+    # рассчитать процент выполнения задания
     def get_score_percentage(self) -> float:
         if self.score is not None:
             return (self.score / self.homework.max_score) * 100
         return 0.0
 
+    # превести баллы в оценку
     def get_grade_letter(self) -> str:
         percentage = self.get_score_percentage()
         if percentage >= 90:
@@ -1074,7 +1127,7 @@ class HomeworkSubmission():
         return submission
 
     def to_xml(self) -> 'ET.Element':
-        """Преобразовать сданную работу в XML элемент"""
+        # Преобразовать сданную работу в XML элемент
         submission_elem = ET.Element("homework_submission")
 
         # Информация о студенте
@@ -1130,7 +1183,7 @@ class HomeworkSubmission():
             submission.feedback = feedback_elem.text
 
         return submission
-
+# класс Тест
 class Test():
     def __init__(self, title: str, lesson: Lesson):
 
@@ -1141,11 +1194,13 @@ class Test():
         self.lesson = lesson
         self.questions: List['Question'] = []
 
+    # добавить вопрос к тесту
     def add_question(self, question: 'Question'):
         if not isinstance(question, Question):
             raise EducationException("Можно добавлять только объекты Question")
         self.questions.append(question)
 
+    # посчитать оценку на основе правитьных ответов
     def calculate_score(self, user_answers: List[int]) -> int:
 
         if len(user_answers) != len(self.questions):
@@ -1215,7 +1270,7 @@ class Test():
                 test.add_question(question)
 
         return test
-
+# класс Вопросы
 class Question:
     def __init__(self, text: str, options: List[str], correct_answer: int):
 
@@ -1280,7 +1335,7 @@ class Question:
             correct_answer=int(question_elem.find("correct_answer").text)
         )
 
-
+# класс Система образования
 class EducationSystem:
     def __init__(self):
         self.students: List[Student] = []
@@ -1621,7 +1676,7 @@ class EducationSystem:
         print("Все связи между объектами восстановлены")
 
     def _restore_all_relationships_from_xml(self, root: ET.Element):
-        """Восстановить все связи из XML"""
+        ##Восстановить все связи из XML
         self._restore_student_courses_from_xml(root)
         self._restore_tutor_courses_from_xml(root)
         self._restore_course_lessons_from_xml(root)
@@ -1682,3 +1737,54 @@ class EducationSystem:
                         homework = next((h for h in self.homeworks if h.title == homework_title), None)
                         if homework and homework not in lesson_obj.homeworks:
                             lesson_obj.homeworks.append(homework)
+
+tutor = Tutor("Иван", "Петров", 35, "89161234567",
+              "ivan@tutor.com", 1, "Математика", 5, "Опытный репетитор")
+tutor.display_info()
+# Создаем студента
+student = Student("Анна", "Иванова", 16, "89161112233",
+                  "anna@mail.ru", 2, 10)
+student.display_info()
+# Создаем курс
+course = tutor.create_course("Алгебра для начинающих", "Математика",
+                            "Основы алгебры для школьников", "18:00",
+                            "5000 руб", "active")
+
+# Записываем студента на курс
+student.choose_a_course(course)
+
+# Создаем урок
+lesson = Lesson("Введение в алгебру", "Основные понятия алгебры",
+                course, "18:00", "19:30", "2024-01-15")
+
+# Создаем платеж
+payment = Payment(student, "январь", 2024)
+payment.add_course(course)
+payment.process_payment()
+
+# СОХРАНЯЕМ В JSON
+system = EducationSystem()
+system.add_tutor(tutor)
+system.add_student(student)
+system.add_course(course)
+system.add_lesson(lesson)
+system.add_payment(payment)
+
+system.save_to_json("education_system.json")
+
+# ЗАГРУЗКА ИЗ JSON
+loaded_system = EducationSystem()
+loaded_system.load_from_json("education_system.json")
+print("Данные загружены из JSON:")
+print(f"Студентов: {len(loaded_system.students)}")
+print(f"Курсов: {len(loaded_system.courses)}")
+
+# СОХРАНЯЕМ В XML
+system.save_to_xml("education_system.xml")
+
+# ЗАГРУЗКА ИЗ XML
+xml_system = EducationSystem()
+xml_system.load_from_xml("education_system.xml")
+print("Данные загружены из XML:")
+print(f"Студентов: {len(xml_system.students)}")
+print(f"Платежей: {len(xml_system.payments)}")
