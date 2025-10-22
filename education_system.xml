@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<education_system>
+  <system_info>
+    <created_date>2025-10-22T11:29:59.603785</created_date>
+    <total_students>1</total_students>
+    <total_tutors>1</total_tutors>
+    <total_courses>1</total_courses>
+    <total_lessons>1</total_lessons>
+    <total_homeworks>0</total_homeworks>
+    <total_tests>0</total_tests>
+    <total_submissions>0</total_submissions>
+    <total_payments>1</total_payments>
+    <total_schedules>0</total_schedules>
+  </system_info>
+  <students>
+    <student>
+      <first_name>Анна</first_name>
+      <last_name>Иванова</last_name>
+      <age>16</age>
+      <phone>89161112233</phone>
+      <email>anna@mail.ru</email>
+      <user_id>2</user_id>
+      <role>student</role>
+      <grade>10</grade>
+      <enrolled_courses>
+        <course>Алгебра для начинающих</course>
+      </enrolled_courses>
+    </student>
+  </students>
+  <tutors>
+    <tutor>
+      <first_name>Иван</first_name>
+      <last_name>Петров</last_name>
+      <age>35</age>
+      <phone>89161234567</phone>
+      <email>ivan@tutor.com</email>
+      <user_id>1</user_id>
+      <role>tutor</role>
+      <subject>Математика</subject>
+      <experience>5</experience>
+      <bio>Опытный репетитор</bio>
+      <courses_taught>
+        <course>Алгебра для начинающих</course>
+      </courses_taught>
+    </tutor>
+  </tutors>
+  <courses>
+    <course>
+      <name>Алгебра для начинающих</name>
+      <tutor>Иван Петров</tutor>
+      <subject>Математика</subject>
+      <description>Основы алгебры для школьников</description>
+      <time>18:00</time>
+      <month_price>5000 руб</month_price>
+      <status>active</status>
+      <students>
+        <student>Анна Иванова</student>
+      </students>
+      <lessons/>
+    </course>
+  </courses>
+  <lessons>
+    <lesson>
+      <name>Введение в алгебру</name>
+      <description>Основные понятия алгебры</description>
+      <course>Алгебра для начинающих</course>
+      <start_time>18:00</start_time>
+      <end_time>19:30</end_time>
+      <date>2024-01-15</date>
+      <homeworks/>
+    </lesson>
+  </lessons>
+  <homeworks/>
+  <tests/>
+  <submissions/>
+  <payments>
+    <payment>
+      <payment_info>
+        <month>январь</month>
+        <year>2024</year>
+        <total_amount>5000.0</total_amount>
+        <status>paid</status>
+        <payment_date>2025-10-22T11:29:59.603685</payment_date>
+      </payment_info>
+      <student>
+        <name>Анна Иванова</name>
+        <id>2</id>
+      </student>
+      <courses>
+        <course>
+          <name>Алгебра для начинающих</name>
+          <price>5000 руб</price>
+        </course>
+      </courses>
+    </payment>
+  </payments>
+  <schedules/>
+</education_system>
